@@ -20,6 +20,17 @@ data = {
 ![terminal output](screenshot.png)
 
 
+### installation
+
+using pip:
+
+```bash
+pip install pnprint
+```
+
+or copy `nprint.py` from this repo to any directory you want !
+
+
 
 ### functions provided:
 
