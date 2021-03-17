@@ -29,7 +29,7 @@ data = {
 	
 	it splits too long lines into indented blocks by syntax markers  (such as `{}()[]`, etc)
 	
-	be careful:  as print(), nprint use the string conversion str(obj) to convert an object passed, if you want to use the string representation, then you'll have to pass repr(obj) to nprint or nformat
+	be careful:  as `print`, `nprint` uses the string conversion `str(obj)` to convert an object passed, if you want to use the string representation, then you'll have to pass `repr(obj)` to `nprint` or `nformat`
 
 + `nformat(text, indent=0, width=100) -> str`     
 
