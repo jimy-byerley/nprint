@@ -10,74 +10,67 @@
 	                           passed, if you want to use the string representation, then you'll have to 
 	                           pass repr(obj) to nprint or nformat
 	nformat()     split a text into indented lines
-	ncolor()      add color makers for terminals syntax highlighting
-	deformat()   remove formatting of all marker-enclosed text
+	ncolor()      add terminal color markups to nested structures
+	deformat()    remove formatting of all marker-enclosed text
+	cprint()      print arguments with python syntaxic coloration
+	ccolor()      add terminal color markups to python syntax
 """
 
 from itertools import chain
-import os, io
+from types import SimpleNamespace
+import os, io, re
 
 
-separators = ',;'
-begin_marker = '{(['
-end_marker = '})]'
-symbols = ':*/+-<>'
-specials = '\\'
-spaces = ' \t\n'
 
-line_width = 100
-
+# default themes
 # blue-green colors
-color_encloser =	'\x1b[38;5;42m'
-color_marker =		'\x1b[38;5;46m'
-color_specials =	'\x1b[38;5;33m'
-color_number =		'\x1b[38;5;33m'
-color_camel =		'\x1b[1;34;40m'
+blue_green = SimpleNamespace(
+	normal = '\x1b[0m',
+	marker = '\x1b[38;5;46m',
+	number = '\x1b[38;5;33m',
+	# nested structs coloration
+	encloser = '\x1b[38;5;42m',
+	specials = '\x1b[38;5;33m',
+	camel =    '\x1b[1;34;40m',
+	# code coloration
+	keyword = '\x1b[38;5;42m',
+	private = '\x1b[38;5;250m',
+	comment = '\x1b[38;5;245m',
+	)
 
 # red-orange colors
-#color_encloser =	'\x1b[38;5;196m'
-#color_marker =		'\x1b[38;5;214m'
-#color_specials =	'\x1b[38;5;202m'
-#color_number =		'\x1b[38;5;202m'
-#color_camel =		'\x1b[1;34;40m'
+red_orange = SimpleNamespace(
+	normal = '\x1b[0m',
+	marker = '\x1b[38;5;214m',
+	number = '\x1b[38;5;202m',
+	# nested struct coloration
+	encloser = '\x1b[38;5;196m',
+	specials = '\x1b[38;5;202m',
+	camel =    '\x1b[1;34;40m',
+	# code coloration
+	keyword = '\x1b[38;5;196m',
+	private = '\x1b[38;5;250m',
+	comment = '\x1b[38;5;245m',
+	)
 
+# settings
 # enable automatic coloration if supported
-enable_color = 'COLORTERM' in os.environ
+enable_color = True
+line_width = 100
+colors = blue_green
 
 
-def _next_separator(text, seek):
-	counter = 0
-	i = seek
-	for i in range(seek, len(text)):
-		if text[i] in begin_marker:	counter += 1
-		elif text[i] in end_marker:	counter -= 1
-		if counter < 0 or (counter == 0 and text[i] in separators):	break
-	return i
-
-def _next_terminator(text, seek):
-	counter = 0
-	i = seek
-	for i in range(seek, len(text)):
-		if text[i] in begin_marker:	counter += 1
-		elif text[i] in end_marker:	counter -= 1
-		if counter < 0:		break
-	return i
-	
-def _next_word(text, seek):
-	while seek < len(text) and text[seek] in spaces:
-		seek += 1
-	return seek
 
 
-def nformat(text, indent=0, width=None):
+def nformat(text:str, indent=0, width=None) -> str:
 	''' output text, splited into indented blocks, newlines are kept '''
 	if type(text) != str:	text = str(text)
 	out = io.StringIO()
 	seek = 0
-	if not width:	width = line_width
+	if not width:	width = os.environ.get('COLUMNS', line_width)
 	
 	while seek < len(text):
-		if text[seek] in begin_marker:
+		if text[seek] in _begin_marker:
 			term = _next_terminator(text, seek+1)
 			if term - seek > width or '\n' in text[seek:term]:	# develop enclosement if its length is over that width
 				indent += 1
@@ -88,10 +81,10 @@ def nformat(text, indent=0, width=None):
 			else:
 				out.write(text[seek:term+1])
 				seek = term
-		elif text[seek] in separators:
+		elif text[seek] in _separators:
 			out.write(text[seek] + '\n'+'\t'*indent)
 			seek = _next_word(text, seek+1)-1
-		elif text[seek] in end_marker:
+		elif text[seek] in _end_marker:
 			indent -= 1
 			out.write(text[seek])
 		else:
@@ -100,18 +93,48 @@ def nformat(text, indent=0, width=None):
 		seek += 1
 	
 	return out.getvalue()
+
+_separators = ',;'
+_begin_marker = '{(['
+_end_marker = '})]'
+_symbols = ':*/+-<>'
+_specials = '\\'
+_spaces = ' \t\n'
+
+def _next_separator(text, seek):
+	counter = 0
+	i = seek
+	for i in range(seek, len(text)):
+		if text[i] in _begin_marker:	counter += 1
+		elif text[i] in _end_marker:	counter -= 1
+		if counter < 0 or (counter == 0 and text[i] in _separators):	break
+	return i
+
+def _next_terminator(text, seek):
+	counter = 0
+	i = seek
+	for i in range(seek, len(text)):
+		if text[i] in _begin_marker:	counter += 1
+		elif text[i] in _end_marker:	counter -= 1
+		if counter < 0:		break
+	return i
 	
+def _next_word(text, seek):
+	while seek < len(text) and text[seek] in _spaces:
+		seek += 1
+	return seek
+
 def deformat(text):
 	''' remove formatting from text, leving only indentation and line breaks for lines not ended by a continuation character (,-+*/) '''
 	seek = _next_word(text, 0)
 	out = io.StringIO()
 	
 	while seek < len(text):
-		if text[seek] in spaces:
+		if text[seek] in _spaces:
 			jump = _next_word(text, seek)
 			if text[seek-1] in ',+-*/':
 				out.write(' ')
-			elif text[seek-1] in begin_marker or jump < len(text) and text[jump] in end_marker:
+			elif text[seek-1] in _begin_marker or jump < len(text) and text[jump] in _end_marker:
 				pass
 			elif '\n' in text[seek:jump]:
 				out.write('\n')
@@ -124,34 +147,26 @@ def deformat(text):
 	return out.getvalue()
 		
 
-def _bisect(l, index, key=lambda x:x):
-	start,end = 0, len(l)
-	while start < end:
-		mid = (start+end)//2
-		val = key(l[mid])
-		if val < index:		start =	mid+1
-		elif val > index:	end =	mid
-		else:	return mid
-	return start
-
-def ncolor(text):
+def ncolor(text:str, colors=None, detect_camelcase=False) -> str:
 	''' generates a string with the content of the text passed, with terminal color makers to highlight some syntax elements '''
+	if not colors:
+		colors = globals()['colors']
 	# list of colors to apply
 	coloration = []
-	# look for special symbols
-	for symbol in chain(separators, begin_marker, end_marker, symbols, specials):
+	# look for special _symbols
+	for symbol in chain(_separators, _begin_marker, _end_marker, _symbols, _specials):
 		start = text.find(symbol, 0)
 		while start != -1:
 			end = start + len(symbol)
-			color = color_encloser
+			color = colors.encloser
 			
 			if symbol == '<':
 				after_name = text.find(' ', end)
 				if text[end:after_name].isidentifier():	
 					end = after_name
-				color = color_marker
-			elif symbol == '>':			color = color_marker
-			elif symbol in specials:	color = color_specials
+				color = colors.marker
+			elif symbol == '>':			color = colors.marker
+			elif symbol in _specials:	color = colors.specials
 			
 			coloration.insert(
 				_bisect(coloration, start, lambda x:x[1]), 
@@ -173,80 +188,117 @@ def ncolor(text):
 				j += 1
 				coloration.insert(
 					_bisect(coloration, i, lambda x:x[1]), 
-					(color_number, i, i+j)
+					(colors.number, i, i+j)
 					)
 				i += j+1
 			# look for CamelCase names
-			#if c.isupper():
-				#for j,c in enumerate(it):
-					#if not c.isalnum():	
-						#j -= 1
-						#break
-				#j += 1
-				#coloration.insert(
-					#_bisect(coloration, i, lambda x:x[1]), 
-					#(color_camel, i, i+j)
-					#)
-				#i += j+1
+			if c.isupper() and detect_camelcase:
+				for j,c in enumerate(it):
+					if not c.isalnum():	
+						j -= 1
+						break
+				j += 1
+				coloration.insert(
+					_bisect(coloration, i, lambda x:x[1]), 
+					(colors.camel, i, i+j)
+					)
+				i += j+1
 		i += 1
 	
 	out = ''
 	last = 0
 	for color,start,end in coloration:
 		end +=1
-		out += text[last:start] + color + text[start:end] + '\x1b[0m'
+		out += text[last:start] + color + text[start:end] + colors.normal
 		last = end
 	out += text[last:]
 	return out
 
+def _bisect(l, index, key=lambda x:x):
+	''' simple bisection over an array '''
+	start,end = 0, len(l)
+	while start < end:
+		mid = (start+end)//2
+		val = key(l[mid])
+		if val < index:		start =	mid+1
+		elif val > index:	end =	mid
+		else:	return mid
+	return start
 
-def nprint(*args, indent=0, color=enable_color, end='\n'):
+
+def nprint(*args, indent=0, colors=None, end='\n'):
 	""" write the arguments passed to the standard output, using nformat and ncolor """
+	if colors is None:
+		colors = enable_color and globals()['colors']
+	colors = 'COLORTERM' in os.environ and colors
 	text = '\t'*indent + nformat(' '.join((str(arg) for arg in args)), indent)
-	print(ncolor(text) if color else text, end=end)
+	print(ncolor(text, colors) if colors else text, end=end)
 
 
+_keywords = {'pass', 'and', 'or', 'if', 'elif', 'else', 'match', 'case', 'for', 'while', 'break', 'continue', 'is', 'in', 'not', 'def', 'lambda', 'class', 'yield', 'async', 'await', 'with', 'try', 'except', 'finally', 'raise', 'from', 'import', 'as', 'with', 'return', 'assert'}
+_constants = {'None', 'True', 'False', 'Ellipsis'}
+_private_start = '_'
+_word_pattern = re.compile(r'([a-zA-Z_]\w*)')
+_call_pattern = re.compile(r'([a-zA-Z_]\w*)\(')
+_number_pattern = re.compile(r'[+-]?\d+\.?\d*(e[+-]\d+)?')
+_operator_pattern = re.compile(r'[+\-\*/@<>=!~&\|]+')
+_string_pattern = re.compile(r'[\'\"][^\'\"]*[\'\"]')
+_comment_pattern = re.compile(r'#.*')
 
-if __name__ == '__main__':
+def ccolor(code:str, colors=None) -> str:
+	''' colorize the given code by adding unix terminal codes for character coloration '''
+	if colors is None:
+		colors = globals()['colors']
 	
-	# for object dumping with string representation
-	nprint(repr(dir()))
+	position = 0
+	result = io.StringIO()
+	while position < len(code):
+		# use regex for looking forward and to jump fast in text
+		if match := _call_pattern.match(code, position):
+			result.write(colors.marker)
+			result.write(code[match.start():match.end()-1])
+			result.write(colors.normal)
+			position = match.end()-1
+		elif match := _number_pattern.match(code, position):
+			result.write(colors.number)
+			result.write(match.group())
+			result.write(colors.normal)
+			position = match.end()
+		elif match := _string_pattern.match(code, position):
+			result.write(colors.number)
+			result.write(match.group())
+			result.write(colors.normal)
+			position = match.end()
+		elif match := _comment_pattern.match(code, position):
+			result.write(colors.comment)
+			result.write(match.group())
+			result.write(colors.normal)
+			position = match.end()
+		elif match := _word_pattern.match(code, position):
+			word = match.group()
+			# special names
+			if word in _keywords:
+				result.write(colors.keyword)
+				result.write(word)
+				result.write(colors.normal)
+			elif word in _constants:
+				result.write(colors.number)
+				result.write(word)
+				result.write(colors.normal)
+			elif word.startswith(_private_start):
+				result.write(colors.private)
+				result.write(word)
+				result.write(colors.normal)
+			# normal names
+			else:
+				result.write(word)
+			position = match.end()
+		else:
+			result.write(code[position])
+			position += 1
+	return result.getvalue()
 	
-	# for common print use
-	nprint('here is a list:', [[1000,2324,30],[40000,5000,6342342]], '\nhere is a type:', int, '\nhere is a Name in CamelCase and one in AVeryLongStringAndSoWhat')
-	
-	# for string and data output
-	nprint('hello everyone, 100 is a decimal number and (0x27a) is an hexadecimal one between parentheses. (did you noticed the automatic line shift ?)')
-	
-	# complex structures
-	data = {
-		'name': 'mydict',
-		'comment': 'this is a dictionnary',
-		'field': (5, 6),
-		'long one': [12324232, 53445645645, 'truc', 345345345345345356, (456,45), 'bla bla bla', 'blo blo blo', 'things and so'],
-		'some text': '/!\\  even content of strings is formated:\n  {345, 23, 17, [2,1]}  as you see\n',
-		}
-
-	nprint('data structure: ', data)
-	
-	# deformatting
-	print(deformat('''
-	P2 = vec3(0.08182,1.184e-08,-0.09931)
-	P3 = vec3(-0.0431,1.258e-08,-0.1056)
-P4 = vec3(-0.1593,-1.199e-08,0.1006)
-line = [
-	Segment(P4, P0),
-	Segment(P0, P1 ),
-	ArcThrough(P1, vec3(0.09681,-1.713e-09,0.01437), P2
-		),
-	Segment(P2,P3),
-	ArcThrough(P3,vec3(-0.06933,-1.117e-09,0.009369),P4),
-	]
-axis = Axis(
-	vec3(-0.1952,	4.918e-08,	-0.4126),
-	vec3(1,	0,	0))
-	'''))
-
-	# hardcore test
-	#import ast
-	#nprint(ast.dump(ast.parse(open(__file__).read())))
+def cprint(*code, colors=None):
+	''' print the given blocks of code with syntex coloration '''
+	for block in code:
+		print(ccolor(block, colors))
