@@ -242,7 +242,7 @@ _word_pattern = re.compile(r'([a-zA-Z_]\w*)')
 _call_pattern = re.compile(r'([a-zA-Z_]\w*)\(')
 _number_pattern = re.compile(r'[+-]?\d+\.?\d*(e[+-]\d+)?')
 _operator_pattern = re.compile(r'[+\-\*/@<>=!~&\|]+')
-_string_pattern = re.compile(r'[\'\"][^\'\"]*[\'\"]')
+_string_pattern = re.compile(r'(\'{3}(.*?)\'{3})|(\"{3}(.*?)\"{3})|(\'(.*?)\')|(\"(.*?)\")', flags=re.DOTALL)
 _comment_pattern = re.compile(r'#.*')
 
 def ccolor(code:str, colors=None) -> str:
