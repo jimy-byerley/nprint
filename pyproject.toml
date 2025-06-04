@@ -1,14 +1,15 @@
-[tool.poetry]
+[project]
 name = "pnprint"
-version = "1.2"
-description = "format and color serialized data strings, to make them more human readable"
-authors = ["jimy byerley <jimy.byerley@gmail.com>"]
+version = "1.3"
+description = "format and color serialized data strings to make them more human readable"
+authors = [{name = "jimy-byerley", email = "jimy.byerley@gmail.com"}]
 license = "GNU LGPL v3"
+readme = "readme.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.group.test.dependencies]
 pytest = "^8.0"
 
 [build-system]
